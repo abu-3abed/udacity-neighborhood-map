@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Neighborhood Map</title>
+  <script src='https://api.mapbox.com/mapbox-gl-js/v0.52.0/mapbox-gl.js'></script>
+  <link href='https://api.mapbox.com/mapbox-gl-js/v0.52.0/mapbox-gl.css' rel='stylesheet' />
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.7.0/animate.min.css">
+  <script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/knockout/3.4.2/knockout-min.js"></script>
+  <style type="text/css">
+  html,
+  body {
+    height: 100%;
+    max-height: 100%;
+  }
+
+  .list-group-item-dark {
+    background-color: black;
+    color: white !important;
+  }
+
+  .list-group-item-dark:hover {
+    background-color: gray;
+  }
+
+  .list-group-item-dark.active {
+    background-color: var(--gray) !important;
+    color: white;
+  }
+
+  #mapid {
+    height: 100%;
+    width: 100%;
+  }
+
+  div.collapse.navbar-collapse {
+    display: none !important;
+  }
+
+  div.collapse.navbar-collapse.collapsing {
+    display: block;
+  }
+
+  @media (max-width: 575.98px) {
+
+
+    div.collapse.navbar-collapse.show {
+      display: block !important;
+    }
+
+    div.col-3 {
+      display: none !important;
+    }
+
+    div.col-9 {
+      width: 100% !important;
+      flex: 0 0 100% !important;
+      max-width: 100% !important;
+    }
+  }
+  </style>
+</head>
+
+<body style="background-color: black;">
+  <div class="wrapper" style="height: 100%; max-height: 100%;">
+    <!-- Attribution: bootstrap Navbar: https://getbootstrap.com/docs/4.0/components/navbar/-->
+    <nav class="navbar navbar-expand-sm navbar-dark bg-dark">
+      <a class="navbar-brand" href="#">Neighborhood Map</a>
+      <a href="#" style="text-align: right; font-size: 8px; color: white;">Places data provided by Foursquare</a>
+      <!-- this menu button only shows up in mobile -->
+      <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarsExample03" aria-controls="navbarsExample03" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <!-- in mobile, Places' listview will appear in menu drawer instead (Desktop view
+           won't be affected by this div) -->
+      <div class="collapse navbar-collapse" id="navbarsExample03">
+        <div style="margin: 0;padding: 0;flex: 0 1 auto;">
+          <input type="text" placeholder="filter.." data-bind='value: filter, valueUpdate: "afterkeydown"' style="width: 100%; padding: 1em;"></div>
+        <div class="list-group" style="max-height: 100%; overflow-y: auto;flex: 1 1 auto;" id="myList" role="tablist" data-bind="foreach: markers">
+          <a class="list-group-item list-group-item-action list-group-item-dark" data-toggle="list" role="tab" style="cursor: pointer;" data-bind=" visible: filtering($data, placeName), click: togglePopups, text: placeName" onclick="this.parentElement.parentElement.classList.remove('show')"></a>
+        </div>
+      </div>
+    </nav>
+    <!-- height rule here helps in stopping scrolling behaviour in main screen -->
+    <div class="container-fluid" style="height: calc(100% - 56px);max-height: 100%;">
+      <div class="row" style="height: 100%;">
+        <div class="col-3 " style="display:flex;flex-direction: column; padding-right: 0; padding-left: 0; max-height: 100%;">
+          <!-- Places' listview -->
+          <div style="margin: 0;padding: 0;flex: 0 1 auto;">
+            <!-- two-way data-binding for self.filter -->
+            <input type="text" placeholder="filter.." data-bind='value: filter, valueUpdate: "afterkeydown"' style="width: 100%; padding: 1em;"></div>
+          <div class="list-group" style="max-height: 100%; overflow-y: auto;flex: 1 1 auto;" id="myList" role="tablist" data-bind="foreach: markers">
+            <!-- this element will be visible when filtering($data, placeName) returns true
+          		 invisible if false. It outputs place name and clicking it wil toggle popup
+          		 attributed with some place -->
+            <a class="list-group-item list-group-item-action list-group-item-dark" data-toggle="list" role="tab" style="cursor: pointer;" data-bind=" visible: filtering($data, placeName), click: togglePopups, text: placeName"></a>
+          </div>
+        </div>
+        <div class="col-9" style="padding-right: 0; padding-left: 0;">
+          <!-- Map will show up here -->
+          <div id="mapid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+  // this function will show bootstrap-style alert message when needed
+  function showAlert(message, details) {
+    // Attribution: Stackoverflow (https://stackoverflow.com/questions/48774982/show-bootstrap-alert-on-button-click-via-javascript-jquery#answer-48775013)
+    var html =
+      `<div class="alert alert-warning alert-dismissible fade show" style="margin: 0 auto;width: 50%;" role="alert">
+  <strong>${message}</strong>${details}
+  <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+    <span aria-hidden="true">&times;</span>
+  </button>
+</div>`
+    $("#mapid").append($.parseHTML(html));
+  }
+  // check if Map object fetched up correctly
+  if ($.isEmptyObject(mapboxgl)) {
+    showAlert("Error", "Problem happened while fetching mapbox object!")
+  }
+
+
+
+  function drawPopup(name, type) {
+    var html = `<h3>${name}</h3>
+    <h3 style="color:red;">${type}</h3>
+    `
+    return html;
+  }
+
+  //Workaround Attribution: MDN (https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch)
+
+  // Fetching Places info through foursquare explore API
+  fetch('https://api.foursquare.com/v2/venues/explore?client_id=URJQ5THUDZYLDWIBL0FKHXU11VGC04SZ0WV343N3KLJWW2VX&client_secret=1RGAXX50V2W4EZB0HENTLVEJCZPEZMKN5IHOMWAPASNBQNLI&v=20190123&near=Riyadh&radius=100000')
+    .then(function(response) {
+      mapboxgl.accessToken = 'pk.eyJ1IjoiYWJ1M2FiZWQyMDEwIiwiYSI6ImNqcmY5aWdyYjB0NGszeXJreTdrNDBjZDcifQ.TnZDVaCZknKUy-DTNSEdag'
+
+      mapboxgl.setRTLTextPlugin('https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-rtl-text/v0.2.0/mapbox-gl-rtl-text.js', function(error) {
+        showAlert("Warning!", "RTLTextplugin didn't load properly so you might find Arabic rendered in backward!");
+      });
+      return response.json();
+    })
+    .then(function(json) {
+      var map = new mapboxgl.Map({
+        container: 'mapid',
+        style: 'mapbox://styles/mapbox/streets-v11',
+        zoom: 10.67,
+        center: [46.72185, 24.68773]
+      });
+      // console.log(json);
+
+      var markers = [];
+
+      // forEach loop running over Foursquare fetched json objects 
+      json.response.groups[0].items.forEach(function(item) {
+
+        var name = item.venue.name;
+        var lng = item.venue.location.lng;
+        var lat = item.venue.location.lat;
+        var type = item.venue.categories[0].name;
+        var img = item.venue.categories[0].icon.prefix;
+        var imgType = item.venue.categories[0].icon.suffix;
+
+
+        // this code will register markers, fill them with Foursquare places info,
+        // attach click handlers and lastly add them to the map.
+        //
+        // note: when I attach an event listener to a marker I find that what catches 
+        // the event is not the marker itself but a part of it! (markers are svg drawings and
+        // they appear some how loosely coupled.) so instead of the whole marker icon catching 
+        // the event, an ellipse or a path of the svg drawing catch it. I had to look for 
+        // a way to catch the parent svg container and I found "HTMLElement.nearestViewportElement"
+        // the common property between them, so I had to use it here.
+
+        var marker = new mapboxgl.Marker()
+          .setLngLat([lng, lat]).setPopup(new mapboxgl.Popup().setHTML(drawPopup(name, type, img, imgType))).addTo(map);
+
+        marker.getElement().addEventListener('click', function(argument) {
+          // console.log(argument);
+
+          // console.log("argument.srcElement: ", argument.srcElement);
+          // console.log("argument.srcElement.nodeName: ", argument.srcElement.nodeName);
+          // console.log("argument.srcElement.children[0]: ", argument.srcElement.children[0]);
+
+          // at rare times user might click the svg element for the marker itself
+          // soo this should be a workaround for it
+          if (argument.srcElement.localName === "svg") {
+            var currentElement = argument.srcElement;
+            // console.log("currentElement: ", currentElement);
+
+          } else if (argument.srcElement.localName === "div") {
+            var currentElement = argument.srcElement.children[0];
+            // console.log("currentElement: ", currentElement);
+
+          } else {
+            var currentElement = argument.srcElement.nearestViewportElement;
+            // console.log("currentElement: ", currentElement);
+
+          }
+
+          // console.log("currentElement: ", currentElement);
+          // console.log(argument.srcElement);
+          // console.log(argument.srcElement.nearestViewportElement);
+
+          // add CSS animation classes (Animate.CSS)
+          currentElement.classList.add('animated', 'shake');
+          currentElement.addEventListener('animationend', function() {
+            currentElement.classList.remove('animated', 'shake');
+          })
+
+        });
+        // add place name as an additional property in each marker
+        marker.placeName = name;
+        markers.push(marker);
+        // console.log(markers);
+      })
+      return markers;
+
+    }).then(function(markers) {
+      // console.log(markers);
+
+      var viewModel = function() {
+        var self = this;
+
+        // grabbing a handle on the main Map object from any marker
+        self.map = markers[0]._map;
+
+        // attach markers array into viewModel
+        self.markers = markers;
+        // console.log('From inside viewModel: ', markers);
+
+        // console.log('From inside viewModel: ', markers);
+
+        // argument marker here is a parameter that corresponds to every iteration
+        // of array `markers` in data-bind click
+        self.togglePopups = function(marker) {
+
+          // untoggle other markers' popups
+          for (var i = self.markers.length - 1; i >= 0; i--) {
+            if (self.markers[i].getPopup().isOpen()) {
+              self.markers[i].togglePopup();
+              // console.log("From inside for loop in togglePopups()");
+              break;
+            }
+          }
+          // console.log(marker._element);
+          marker._element.click();
+          marker.togglePopup();
+        }
+        // this observable is connected to filter input bar in two-way binding
+        self.filter = ko.observable('');
+
+        // Here where all the magic happens..
+        //
+        // this function will do the filtering job (removing list item and marker from
+        // map).
+        // this function is connected to every list item in the places listview
+        // it takes two parameters:
+        // data: raw data (or array item).
+        // text: plain text which practically is a place name.
+        //
+        // FIRST: it would take text param. and search it for value
+        // self.filter and returns true if it's found, false otherwise.
+        // SECOND: will use data param. to determine its index from the array context.
+        // FINALLY: using result from step one, will add some marker to map if true or 
+        // remove it if false.
+
+        self.filtering = function(data, text) {
+
+          var bool = text.search(new RegExp(filter(), 'i')) !== -1;
+          var index = self.markers.indexOf(data);
+
+          if (bool) {
+            self.markers[index].addTo(self.map);
+            return bool;
+          } else {
+            self.markers[index].remove();
+            return bool;
+          }
+        };
+      };
+      // this function will put the viewModel into action.
+      ko.applyBindings(viewModel);
+    }).catch(function(error) {
+      showAlert("Error!: ", error);
+      // console.error("Error!: ", error);
+    });
+  </script>
+</body>
+
+</html>
